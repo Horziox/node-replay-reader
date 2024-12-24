@@ -1,4 +1,5 @@
 /* eslint-disable class-methods-use-this */
+import { CipherKey } from 'crypto';
 import { promises as fs } from 'fs';
 import BinaryReader from './BinaryReader';
 import { queryAccounts } from './Http';
@@ -16,6 +17,7 @@ import {
   AdditionGfp,
   SafeZone,
   PlayerPositions,
+  FLocalFileReplayCustomVersion,
 } from './structs';
 
 const halfMapSize = 131328;
@@ -53,6 +55,11 @@ class ReplayReader {
   private parseMeta() {
     const magic = this.reader.readUInt32();
     const fileVersion = this.reader.readUInt32();
+    
+    if(fileVersion > FLocalFileReplayCustomVersion.LatestVersion) {
+      process.emitWarning(`The replay file you provided is not fully supported and may cause errors. Please report any issues you encounter.`);
+    }
+    
     const lengthInMs = this.reader.readUInt32();
     const networkVersion = this.reader.readUInt32();
     const changelist = this.reader.readUInt32();
@@ -73,7 +80,7 @@ class ReplayReader {
     if (fileVersion >= 6) {
       isEncrypted = this.reader.readBool();
       const encryptionKeyLength = this.reader.readUInt32();
-      encryptionKey = Buffer.from(this.reader.readBytes(encryptionKeyLength));
+      encryptionKey = this.reader.readBytes(encryptionKeyLength);
     }
 
     if (!isLive && isEncrypted && encryptionKey.length === 0) throw new Error('Cannot read encrypted replay without encryption key');
@@ -188,7 +195,7 @@ class ReplayReader {
     const size = this.reader.readUInt32();
 
     const decryptedEventBuffer = this.encryption.encryptionKey
-      ? this.reader.decryptBuffer(size, this.encryption.encryptionKey) : this.reader.readBytes(size);
+      ? this.reader.decryptBuffer(size, this.encryption.encryptionKey as any as CipherKey) : this.reader.readBytes(size);
 
     const eventReader = new BinaryReader(decryptedEventBuffer);
 
