@@ -148,6 +148,7 @@ export enum FLocalFileReplayCustomVersion {
   StreamChunkTimes,
   FriendlyNameCharEncoding,
   EncryptionSupport,
+  CustomVersions,
 
   VersionPlusOne,
   LatestVersion = VersionPlusOne - 1,
