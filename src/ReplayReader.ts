@@ -63,6 +63,12 @@ class ReplayReader {
     const lengthInMs = this.reader.readUInt32();
     const networkVersion = this.reader.readUInt32();
     const changelist = this.reader.readUInt32();
+
+    if(fileVersion >= FLocalFileReplayCustomVersion.CustomVersions) {
+      // With fileVersion 7 Epic has added some extra bytes, we need to skip them atm
+      this.reader.goto(44);
+    }
+    
     const name = this.reader.readString();
     const isLive = this.reader.readBool();
 
@@ -92,7 +98,7 @@ class ReplayReader {
       this.encryption.encryptionKey = encryptionKey;
     }
 
-    this.meta = {
+    const meta = {
       magic,
       fileVersion,
       lengthInMs,
@@ -103,9 +109,12 @@ class ReplayReader {
       timestamp,
       isCompressed,
     };
+
+    this.meta = meta;
+    return meta;
   }
 
-  private parseChunks() {
+  private parseChunks(meta: ReplayMeta) {
     const chunksStartOffset = this.reader.offset;
     while (this.reader.buffer.byteLength > this.reader.offset) {
       const chunkType = this.reader.readUInt32();
@@ -115,7 +124,7 @@ class ReplayReader {
       switch (chunkType) {
         case 0:
           if (!this.header) {
-            this.parseHeader();
+            this.parseHeader(meta);
             this.reader.goto(chunksStartOffset);
           }
           break;
@@ -128,7 +137,7 @@ class ReplayReader {
     }
   }
 
-  private parseHeader() {
+  private parseHeader(meta: ReplayMeta) {
     const magic = this.reader.readUInt32();
     const networkVersion = this.reader.readUInt32();
     const networkChecksum = this.reader.readUInt32();
@@ -141,6 +150,12 @@ class ReplayReader {
     this.reader.skip(4);
     const patch = this.reader.readUInt16();
     const changelist = this.reader.readUInt32();
+
+    if(meta.fileVersion >= FLocalFileReplayCustomVersion.CustomVersions) {
+      // With fileVersion 7 Epic has added some extra bytes, we need to skip them atm
+      this.reader.skip(84);
+    }
+    
     const branch = this.reader.readString();
 
     let fileVersionUE4;
@@ -494,8 +509,8 @@ class ReplayReader {
     const replayBuffer = Buffer.isBuffer(replay) ? replay : await fs.readFile(replay);
 
     const reader = new ReplayReader(replayBuffer);
-    reader.parseMeta();
-    reader.parseChunks();
+    const meta = reader.parseMeta();
+    reader.parseChunks(meta);
 
     if (config?.resolveAccountNames) await reader.resolveDisplayNames();
 
